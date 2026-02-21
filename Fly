@@ -1,0 +1,534 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+local player = Players.LocalPlayer
+local flyEnabled = false
+local flySpeed = 100
+local toggleKey = Enum.KeyCode.R
+local hideKey = Enum.KeyCode.T
+local flightConn, gyro, vel, noStunConn, inputConn
+local isTyping = false
+local destroyed = false
+local watchdogConn
+local targetContainer
+local platformConn
+local sitConn
+local originalWalkSpeed, originalJumpPower
+local estadosProblematicos = {
+	Enum.HumanoidStateType.FallingDown,
+	Enum.HumanoidStateType.GettingUp,
+	Enum.HumanoidStateType.Flying,
+	Enum.HumanoidStateType.Freefall,
+	Enum.HumanoidStateType.Jumping,
+	Enum.HumanoidStateType.Landed,
+	Enum.HumanoidStateType.Swimming,
+	Enum.HumanoidStateType.Climbing,
+	Enum.HumanoidStateType.Seated,
+	Enum.HumanoidStateType.Physics,
+	Enum.HumanoidStateType.Dead,
+	Enum.HumanoidStateType.Ragdoll
+}
+do
+	local ok = pcall(function()
+		local test = Instance.new("ScreenGui")
+		test.Name = "__TestCoreGuiAccess"
+		test.Parent = CoreGui
+		test:Destroy()
+	end)
+	if ok then
+		targetContainer = CoreGui
+	else
+		targetContainer = player:WaitForChild("PlayerGui")
+	end
+end
+local function crearGUIPrincipal()
+	local g = Instance.new("ScreenGui")
+	g.Name = "FlightGUI"
+	g.ResetOnSpawn = false
+	g.IgnoreGuiInset = true
+	g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	g.DisplayOrder = 2147483647
+	g.Enabled = true
+	g.Parent = targetContainer
+	return g
+end
+local gui, frame, glow, status, lblVel, inVel, lblKey, inKey, lblHide, inHide, destroyBtn, infoLabel, stroke, corner
+local allTextObjects = {}
+local function construirGUI()
+	allTextObjects = {}
+	if not gui or not gui.Parent then
+		gui = crearGUIPrincipal()
+	end
+	frame = Instance.new("Frame")
+	frame.Name = "MainFrame"
+	frame.Size = UDim2.new(0, 250, 0, 260)
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	frame.BackgroundTransparency = 1
+	frame.Parent = gui
+	frame.ClipsDescendants = true
+	frame.ZIndex = 1000
+	frame.Active = false
+	corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = frame
+	stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(0, 255, 0)
+	stroke.Thickness = 2
+	stroke.Transparency = 1
+	stroke.LineJoinMode = Enum.LineJoinMode.Round
+	stroke.Parent = frame
+	glow = Instance.new("ImageLabel")
+	glow.Name = "Glow"
+	glow.Size = UDim2.new(1.15, 0, 1.15, 0)
+	glow.Position = UDim2.new(-0.075, 0, -0.075, 0)
+	glow.BackgroundTransparency = 1
+	glow.Image = ""
+	glow.ImageColor3 = Color3.fromRGB(0, 255, 0)
+	glow.ImageTransparency = 1
+	glow.ZIndex = 999
+	glow.Parent = frame
+	status = Instance.new("TextLabel")
+	status.Size = UDim2.new(0, 230, 0, 30)
+	status.Position = UDim2.new(0, 10, 0, 10)
+	status.BackgroundTransparency = 1
+	status.TextColor3 = Color3.fromRGB(0, 255, 0)
+	status.Font = Enum.Font.GothamBold
+	status.TextScaled = true
+	status.Text = "Vuelo: OFF"
+	status.TextTransparency = 1
+	status.ZIndex = 1001
+	status.Parent = frame
+	lblVel = Instance.new("TextLabel")
+	lblVel.Size = UDim2.new(0, 230, 0, 20)
+	lblVel.Position = UDim2.new(0, 10, 0, 50)
+	lblVel.BackgroundTransparency = 1
+	lblVel.TextColor3 = Color3.fromRGB(0, 255, 0)
+	lblVel.Font = Enum.Font.GothamBold
+	lblVel.TextScaled = true
+	lblVel.Text = "Velocidad:"
+	lblVel.TextTransparency = 1
+	lblVel.ZIndex = 1001
+	lblVel.Parent = frame
+	inVel = Instance.new("TextBox")
+	inVel.Size = UDim2.new(0, 230, 0, 25)
+	inVel.Position = UDim2.new(0, 10, 0, 70)
+	inVel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	inVel.BorderSizePixel = 0
+	inVel.TextColor3 = Color3.fromRGB(0, 255, 0)
+	inVel.Font = Enum.Font.GothamBold
+	inVel.TextScaled = true
+	inVel.ClearTextOnFocus = false
+	inVel.Text = tostring(flySpeed)
+	inVel.TextTransparency = 1
+	inVel.ZIndex = 1002
+	inVel.Parent = frame
+	lblKey = Instance.new("TextLabel")
+	lblKey.Size = UDim2.new(0, 230, 0, 20)
+	lblKey.Position = UDim2.new(0, 10, 0, 105)
+	lblKey.BackgroundTransparency = 1
+	lblKey.TextColor3 = Color3.fromRGB(0, 255, 0)
+	lblKey.Font = Enum.Font.GothamBold
+	lblKey.TextScaled = true
+	lblKey.Text = "Tecla Toggle:"
+	lblKey.TextTransparency = 1
+	lblKey.ZIndex = 1001
+	lblKey.Parent = frame
+	inKey = Instance.new("TextBox")
+	inKey.Size = UDim2.new(0, 230, 0, 25)
+	inKey.Position = UDim2.new(0, 10, 0, 125)
+	inKey.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	inKey.BorderSizePixel = 0
+	inKey.TextColor3 = Color3.fromRGB(0, 255, 0)
+	inKey.Font = Enum.Font.GothamBold
+	inKey.TextScaled = true
+	inKey.ClearTextOnFocus = false
+	inKey.Text = toggleKey.Name
+	inKey.TextTransparency = 1
+	inKey.ZIndex = 1002
+	inKey.Parent = frame
+	lblHide = Instance.new("TextLabel")
+	lblHide.Size = UDim2.new(0, 230, 0, 20)
+	lblHide.Position = UDim2.new(0, 10, 0, 155)
+	lblHide.BackgroundTransparency = 1
+	lblHide.TextColor3 = Color3.fromRGB(0, 255, 0)
+	lblHide.Font = Enum.Font.GothamBold
+	lblHide.TextScaled = true
+	lblHide.Text = "Tecla Ocultar GUI:"
+	lblHide.TextTransparency = 1
+	lblHide.ZIndex = 1001
+	lblHide.Parent = frame
+	inHide = Instance.new("TextBox")
+	inHide.Size = UDim2.new(0, 230, 0, 25)
+	inHide.Position = UDim2.new(0, 10, 0, 175)
+	inHide.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	inHide.BorderSizePixel = 0
+	inHide.TextColor3 = Color3.fromRGB(0, 255, 0)
+	inHide.Font = Enum.Font.GothamBold
+	inHide.TextScaled = true
+	inHide.ClearTextOnFocus = false
+	inHide.Text = hideKey.Name
+	inHide.TextTransparency = 1
+	inHide.ZIndex = 1002
+	inHide.Parent = frame
+	destroyBtn = Instance.new("TextButton")
+	destroyBtn.Size = UDim2.new(0, 230, 0, 30)
+	destroyBtn.Position = UDim2.new(0, 10, 0, 205)
+	destroyBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	destroyBtn.BorderSizePixel = 0
+	destroyBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
+	destroyBtn.Font = Enum.Font.GothamBold
+	destroyBtn.TextScaled = true
+	destroyBtn.Text = "Destruir Script"
+	destroyBtn.TextTransparency = 1
+	destroyBtn.ZIndex = 1002
+	destroyBtn.Parent = frame
+	infoLabel = Instance.new("TextLabel")
+	infoLabel.Size = UDim2.new(0, 300, 0, 50)
+	infoLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	infoLabel.Position = UDim2.new(0.5, 0, 0.45, 0)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+	infoLabel.Font = Enum.Font.GothamBold
+	infoLabel.TextScaled = true
+	infoLabel.Visible = false
+	infoLabel.TextTransparency = 1
+	infoLabel.ZIndex = 2000
+	infoLabel.Parent = gui
+	for _, v in pairs(frame:GetDescendants()) do
+		if v:IsA("TextLabel") or v:IsA("TextBox") or v:IsA("TextButton") then
+			table.insert(allTextObjects, v)
+		end
+	end
+end
+local fadeShowInfo = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local fadeHideInfo = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+local function estadoInicial()
+	if not frame then return end
+	frame.BackgroundTransparency = 1
+	if stroke then stroke.Transparency = 1 end
+	if glow then glow.ImageTransparency = 1 end
+	for _, t in ipairs(allTextObjects) do
+		t.TextTransparency = 1
+	end
+	frame.Visible = false
+end
+local function animarMostrar()
+	if not frame then return end
+	frame.Visible = true
+	local tweens = {}
+	table.insert(tweens, TweenService:Create(frame, fadeShowInfo, {BackgroundTransparency = 0}))
+	if stroke then table.insert(tweens, TweenService:Create(stroke, fadeShowInfo, {Transparency = 0})) end
+	if glow then table.insert(tweens, TweenService:Create(glow, fadeShowInfo, {ImageTransparency = 0.9})) end
+	for _, t in ipairs(allTextObjects) do
+		table.insert(tweens, TweenService:Create(t, fadeShowInfo, {TextTransparency = 0}))
+	end
+	for _, tw in ipairs(tweens) do tw:Play() end
+end
+local function animarOcultar()
+	if not frame then return end
+	local tweens = {}
+	table.insert(tweens, TweenService:Create(frame, fadeHideInfo, {BackgroundTransparency = 1}))
+	if stroke then table.insert(tweens, TweenService:Create(stroke, fadeHideInfo, {Transparency = 1})) end
+	if glow then table.insert(tweens, TweenService:Create(glow, fadeHideInfo, {ImageTransparency = 1})) end
+	for _, t in ipairs(allTextObjects) do
+		table.insert(tweens, TweenService:Create(t, fadeHideInfo, {TextTransparency = 1}))
+	end
+	for _, tw in ipairs(tweens) do tw:Play() end
+	task.delay(fadeHideInfo.Time, function()
+		if frame then
+			frame.Visible = false
+			estadoInicial()
+		end
+	end)
+end
+local function mostrarMensaje(txt)
+	if not infoLabel then return end
+	infoLabel.Text = txt
+	infoLabel.TextTransparency = 1
+	infoLabel.Visible = true
+	local t1 = TweenService:Create(infoLabel, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {TextTransparency = 0})
+	t1:Play()
+	task.delay(1, function()
+		local t2 = TweenService:Create(infoLabel, TweenInfo.new(0.24, Enum.EasingStyle.Quad), {TextTransparency = 1})
+		t2:Play()
+		task.delay(0.26, function() if infoLabel then infoLabel.Visible = false end end)
+	end)
+end
+local function conectarCajasTexto()
+	for _, txtb in ipairs({inVel, inKey, inHide}) do
+		txtb.Focused:Connect(function() isTyping = true end)
+		txtb.FocusLost:Connect(function() isTyping = false end)
+	end
+	inVel.FocusLost:Connect(function()
+		local n = tonumber(inVel.Text)
+		if n and n > 0 then flySpeed = math.floor(n) end
+		inVel.Text = tostring(flySpeed)
+	end)
+	inKey.FocusLost:Connect(function()
+		local name = inKey.Text:upper():gsub("%s+", "")
+		if Enum.KeyCode[name] then toggleKey = Enum.KeyCode[name] end
+		inKey.Text = toggleKey.Name
+	end)
+	inHide.FocusLost:Connect(function()
+		local name = inHide.Text:upper():gsub("%s+", "")
+		if Enum.KeyCode[name] then hideKey = Enum.KeyCode[name] end
+		inHide.Text = hideKey.Name
+	end)
+end
+local function protegerHumanoid(hum)
+	if not hum or not hum.Parent then return end
+	for _, estado in ipairs(estadosProblematicos) do
+		pcall(function()
+			hum:SetStateEnabled(estado, false)
+		end)
+	end
+	hum.PlatformStand = true
+	if noStunConn then noStunConn:Disconnect() end
+	noStunConn = hum.StateChanged:Connect(function(old, new)
+		if not flyEnabled then return end
+		if new ~= Enum.HumanoidStateType.Physics then
+			task.spawn(function()
+				pcall(function()
+					hum:ChangeState(Enum.HumanoidStateType.Physics)
+				end)
+				hum.PlatformStand = true
+			end)
+		end
+	end)
+	if platformConn then platformConn:Disconnect() end
+	platformConn = hum:GetPropertyChangedSignal("PlatformStand"):Connect(function()
+		if flyEnabled and not hum.PlatformStand then
+			hum.PlatformStand = true
+		end
+	end)
+	if sitConn then sitConn:Disconnect() end
+	sitConn = hum:GetPropertyChangedSignal("Sit"):Connect(function()
+		if flyEnabled and hum.Sit then
+			hum.Sit = false
+		end
+	end)
+end
+local function jugadorEscribiendo()
+	if isTyping then return true end
+	if UIS:GetFocusedTextBox() then return true end
+	return false
+end
+local function iniciarVuelo()
+	local char = player.Character or player.CharacterAdded:Wait()
+	local root = char:WaitForChild("HumanoidRootPart")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	originalWalkSpeed = hum.WalkSpeed
+	originalJumpPower = hum.JumpPower
+	if noStunConn then noStunConn:Disconnect() noStunConn = nil end
+	if platformConn then platformConn:Disconnect() platformConn = nil end
+	if sitConn then sitConn:Disconnect() sitConn = nil end
+	protegerHumanoid(hum)
+	if not gyro or not gyro.Parent then
+		gyro = Instance.new("BodyGyro", root)
+		gyro.P = 10000
+		gyro.D = 255
+		gyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+	end
+	if not vel or not vel.Parent then
+		vel = Instance.new("BodyVelocity", root)
+		vel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	end
+	if flightConn then flightConn:Disconnect() flightConn = nil end
+	flightConn = RS.Heartbeat:Connect(function()
+		if not root or not root.Parent then return end
+		for _, obj in ipairs(root:GetChildren()) do
+			if obj:IsA("BodyMover") and obj ~= gyro and obj ~= vel then obj:Destroy() end
+		end
+		if hum then
+			pcall(function()
+				hum:ChangeState(Enum.HumanoidStateType.Physics)
+			end)
+			hum.PlatformStand = true
+			if hum.WalkSpeed < 16 then hum.WalkSpeed = 16 end
+			if hum.JumpPower > 0 then hum.JumpPower = 0 end
+		end
+		root.Anchored = false
+		local cam = workspace.CurrentCamera
+		local dir = Vector3.new()
+		if not jugadorEscribiendo() then
+			if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
+			if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
+			if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
+			if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
+		end
+		local finalVel = dir.Magnitude > 0 and dir.Unit * flySpeed or Vector3.new(0, 0, 0)
+		vel.Velocity = Vector3.new(finalVel.X, finalVel.Y, finalVel.Z)
+		if cam then
+			gyro.CFrame = CFrame.new(root.Position, root.Position + cam.CFrame.LookVector)
+		end
+	end)
+	status.Text = "Vuelo: ON"
+	mostrarMensaje("Vuelo Activado")
+end
+local function detenerVuelo()
+	local char = player.Character
+	if char then
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			for _, estado in ipairs(estadosProblematicos) do
+				pcall(function()
+					hum:SetStateEnabled(estado, true)
+				end)
+			end
+			hum.PlatformStand = false
+			pcall(function()
+				local root = char:FindFirstChild("HumanoidRootPart")
+				if root then
+					local rayParams = RaycastParams.new()
+					rayParams.FilterDescendantsInstances = {char}
+					rayParams.FilterType = Enum.RaycastFilterType.Exclude
+					local rayResult = workspace:Raycast(root.Position, Vector3.new(0, - (hum.HipHeight + 1), 0), rayParams)
+					if rayResult then
+						hum:ChangeState(Enum.HumanoidStateType.Running)
+					else
+						hum:ChangeState(Enum.HumanoidStateType.Freefall)
+					end
+				end
+			end)
+			hum.WalkSpeed = originalWalkSpeed or 16
+			hum.JumpPower = originalJumpPower or 50
+		end
+	end
+	if flightConn then flightConn:Disconnect() flightConn = nil end
+	if noStunConn then noStunConn:Disconnect() noStunConn = nil end
+	if platformConn then platformConn:Disconnect() platformConn = nil end
+	if sitConn then sitConn:Disconnect() sitConn = nil end
+	if gyro then gyro:Destroy() gyro = nil end
+	if vel then vel:Destroy() vel = nil end
+	status.Text = "Vuelo: OFF"
+	mostrarMensaje("Vuelo Desactivado")
+end
+local function asegurarPropiedades()
+	if not gui then return end
+	if gui.Parent ~= targetContainer then
+		gui.Parent = targetContainer
+	end
+	if gui.Enabled ~= true then
+		gui.Enabled = true
+	end
+	if gui.ResetOnSpawn ~= false then
+		gui.ResetOnSpawn = false
+	end
+	if gui.ZIndexBehavior ~= Enum.ZIndexBehavior.Sibling then
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	end
+	if gui.DisplayOrder ~= 2147483647 then
+		gui.DisplayOrder = 2147483647
+	end
+end
+local function revivirSiFalta()
+	if destroyed then return end
+	if not gui or not gui.Parent then
+		gui = crearGUIPrincipal()
+		construirGUI()
+		estadoInicial()
+		animarMostrar()
+		conectarCajasTexto()
+		if inputConn then inputConn:Disconnect() inputConn = nil end
+		inputConn = UIS.InputBegan:Connect(function(input, gameProcessed)
+			if gameProcessed or jugadorEscribiendo() then return end
+			if input.KeyCode == toggleKey then
+				flyEnabled = not flyEnabled
+				if flyEnabled then iniciarVuelo() else detenerVuelo() end
+				if frame and not frame.Visible then mostrarMensaje(status.Text) end
+			elseif input.KeyCode == hideKey then
+				if frame and frame.Visible then animarOcultar() else animarMostrar() end
+			end
+		end)
+		if destroyBtn then
+			destroyBtn.MouseButton1Click:Connect(function()
+				flyEnabled = false
+				detenerVuelo()
+				destroyed = true
+				if watchdogConn then watchdogConn:Disconnect() watchdogConn = nil end
+				if inputConn then inputConn:Disconnect() inputConn = nil end
+				if flightConn then flightConn:Disconnect() flightConn = nil end
+				if noStunConn then noStunConn:Disconnect() noStunConn = nil end
+				if sitConn then sitConn:Disconnect() sitConn = nil end
+				if gui and gui.Parent then gui:Destroy() end
+				StarterGui:SetCore("SendNotification", {Title = "Script De Vuelo", Text = "Script Destruido", Duration = 5})
+				gyro, vel, gui, frame, toggleKey, hideKey = nil, nil, nil, nil, nil, nil
+			end)
+		end
+	end
+end
+gui = crearGUIPrincipal()
+construirGUI()
+estadoInicial()
+animarMostrar()
+conectarCajasTexto()
+StarterGui:SetCore("SendNotification", {Title = "Script De Vuelo", Text = "✈ Volar Sin Límites ✈", Duration = 5})
+inputConn = UIS.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed or jugadorEscribiendo() then return end
+	if input.KeyCode == toggleKey then
+		flyEnabled = not flyEnabled
+		if flyEnabled then iniciarVuelo() else detenerVuelo() end
+		if not frame.Visible then mostrarMensaje(status.Text) end
+	elseif input.KeyCode == hideKey then
+		if frame.Visible then animarOcultar() else animarMostrar() end
+	end
+end)
+player.CharacterRemoving:Connect(detenerVuelo)
+destroyBtn.MouseButton1Click:Connect(function()
+	flyEnabled = false
+	detenerVuelo()
+	destroyed = true
+	if watchdogConn then watchdogConn:Disconnect() watchdogConn = nil end
+	if inputConn then inputConn:Disconnect() inputConn = nil end
+	if flightConn then flightConn:Disconnect() flightConn = nil end
+	if noStunConn then noStunConn:Disconnect() noStunConn = nil end
+	if sitConn then sitConn:Disconnect() sitConn = nil end
+	if gui and gui.Parent then gui:Destroy() end
+	StarterGui:SetCore("SendNotification", {Title = "Script De Vuelo", Text = "Script Destruido", Duration = 5})
+	gyro, vel, gui, frame, toggleKey, hideKey = nil, nil, nil, nil, nil, nil
+end)
+gui.AncestryChanged:Connect(function(_, newParent)
+	if destroyed then return end
+	if newParent ~= targetContainer then
+		gui.Parent = targetContainer
+	end
+end)
+gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+	if destroyed then return end
+	if gui.Enabled ~= true then
+		gui.Enabled = true
+	end
+end)
+gui:GetPropertyChangedSignal("DisplayOrder"):Connect(function()
+	if destroyed then return end
+	if gui.DisplayOrder ~= 2147483647 then
+		gui.DisplayOrder = 2147483647
+	end
+end)
+gui:GetPropertyChangedSignal("ZIndexBehavior"):Connect(function()
+	if destroyed then return end
+	if gui.ZIndexBehavior ~= Enum.ZIndexBehavior.Sibling then
+		gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	end
+end)
+watchdogConn = RS.Heartbeat:Connect(function()
+	revivirSiFalta()
+	asegurarPropiedades()
+end)
+player.CharacterAdded:Connect(function(char)
+	task.wait(1)
+	if flyEnabled then
+		local hum = char:WaitForChild("Humanoid", 5)
+		local root = char:WaitForChild("HumanoidRootPart", 5)
+		if hum and root then
+			iniciarVuelo()
+		end
+	end
+end)
